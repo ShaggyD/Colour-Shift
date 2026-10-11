@@ -142,11 +142,27 @@ make pack        # build colorshift@dchadwick.local.shell-extension.zip
 make uninstall
 ```
 
-To test without disturbing a running session, boot a throwaway shell:
+### Testing caveat (important)
+
+Static checks and offline GLSL validation are safe:
 
 ```sh
-dbus-run-session -- gnome-shell --wayland --headless --mode=ubuntu
+node --check extension.js        # JS syntax
+make schemas                     # schema compiles
 ```
+
+**Do not** boot a second `gnome-shell` on the same seat while you are logged in:
+
+```sh
+dbus-run-session -- gnome-shell --wayland --headless --mode=ubuntu   # AVOID
+```
+
+The throwaway shell has no `XDG_SESSION_ID`, logs *"getCurrentSessionProxy()
+called outside a user session. Asking logind directly."*, and then **takes
+control of seat0's input devices** — logind revokes them from your live session,
+so the touchpad/keyboard pause until it exits. It is transient and self-heals,
+but it is disruptive. Test in your real session after a login, or run the
+second shell on a separate seat.
 
 See [`docs/DESIGN.md`](docs/DESIGN.md) for the roadmap.
 
