@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="colorshift">
+  <schema id="org.gnome.shell.extensions.colorshift"
+          path="/org/gnome/shell/extensions/colorshift/">
+    <key name="preset" type="s">
+      <default>'red'</default>
+      <summary>Colour preset</summary>
+      <description>The colour shift preset to apply (red, green, blue, red-mono, green-mono, amber, sepia, grayscale).</description>
+    </key>
+    <key name="enabled" type="b">
+      <default>false</default>
+      <summary>Filter enabled</summary>
+      <description>Whether the colour shift filter is currently applied.</description>
+    </key>
+  </schema>
+</schemalist>

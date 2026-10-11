@@ -1,0 +1,7 @@
+{
+  "uuid": "colorshift@dchadwick.local",
+  "name": "Colour Shift",
+  "description": "Turns the entire display a single colour (red, green, blue, amber, sepia) or a monochrome tint. Adds a Quick Settings toggle with a dropdown to choose the colour.",
+  "shell-version": ["48", "49", "50"],
+  "settings-schema": "org.gnome.shell.extensions.colorshift"
+}
