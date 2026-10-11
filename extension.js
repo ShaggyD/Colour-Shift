@@ -345,16 +345,12 @@ export default class ColorShiftExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
 
-        // Both effects are created once and left attached; we flip their
-        // `enabled` flag (the same pattern the shell uses for its own
-        // desaturate / brightness effects on uiGroup).
+        // Effects are created once, but only the active one is attached to
+        // uiGroup at any time — never stack two offscreen effects on the
+        // whole-stage actor (a documented Mutter failure mode).
         this._matrixEffect = new ColorShiftEffect({name: 'colorshift'});
-        this._matrixEffect.enabled = false;
-        Main.layoutManager.uiGroup.add_effect(this._matrixEffect);
-
         this._crtEffect = new CrtEffect({name: 'colorshift-crt'});
-        this._crtEffect.enabled = false;
-        Main.layoutManager.uiGroup.add_effect(this._crtEffect);
+        this._activeEffect = null;
 
         this._indicator = new ColorShiftIndicator(this);
         Main.panel.statusArea.quickSettings.addExternalIndicator(this._indicator);
@@ -373,10 +369,9 @@ export default class ColorShiftExtension extends Extension {
         this._indicator?.destroy();
         this._indicator = null;
 
-        for (const eff of [this._matrixEffect, this._crtEffect]) {
-            if (eff)
-                Main.layoutManager.uiGroup?.remove_effect(eff);
-        }
+        if (this._activeEffect)
+            Main.layoutManager.uiGroup?.remove_effect(this._activeEffect);
+        this._activeEffect = null;
         this._matrixEffect = null;
         this._crtEffect = null;
         this._settings = null;
@@ -388,21 +383,25 @@ export default class ColorShiftExtension extends Extension {
         if (!this._matrixEffect || !this._crtEffect)
             return;
 
-        if (!preset) {
-            this._matrixEffect.enabled = false;
-            this._crtEffect.enabled = false;
-            return;
-        }
-
-        if (crt) {
-            this._matrixEffect.enabled = false;
+        let effect = null;
+        if (preset && crt) {
             this._applyCrtParams(preset);
-            this._crtEffect.enabled = true;
-        } else {
-            this._crtEffect.enabled = false;
+            effect = this._crtEffect;
+        } else if (preset) {
             this._matrixEffect.setRows(preset.rows);
-            this._matrixEffect.enabled = true;
+            effect = this._matrixEffect;
         }
+        this._setActiveEffect(effect);
+    }
+
+    _setActiveEffect(effect) {
+        if (this._activeEffect === effect)
+            return;
+        if (this._activeEffect)
+            Main.layoutManager.uiGroup?.remove_effect(this._activeEffect);
+        this._activeEffect = effect;
+        if (effect)
+            Main.layoutManager.uiGroup?.add_effect(effect);
     }
 
     _applyCrtParams(preset) {
