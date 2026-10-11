@@ -372,6 +372,10 @@ export default class ColorShiftExtension extends Extension {
         if (this._activeEffect)
             Main.layoutManager.uiGroup?.remove_effect(this._activeEffect);
         this._activeEffect = null;
+        if (this._unredirectDisabled) {
+            global.compositor.enable_unredirect();
+            this._unredirectDisabled = false;
+        }
         this._matrixEffect = null;
         this._crtEffect = null;
         this._settings = null;
@@ -400,8 +404,20 @@ export default class ColorShiftExtension extends Extension {
         if (this._activeEffect)
             Main.layoutManager.uiGroup?.remove_effect(this._activeEffect);
         this._activeEffect = effect;
-        if (effect)
+        if (effect) {
+            // Fullscreen windows would otherwise be scan-out'd directly to the
+            // display (mutter unredirect), bypassing the effect: no tint, no
+            // curvature (the straight-edge artifact), and the classic
+            // invisible-cursor-in-fullscreen bug. Force compositing instead.
+            if (!this._unredirectDisabled) {
+                global.compositor.disable_unredirect();
+                this._unredirectDisabled = true;
+            }
             Main.layoutManager.uiGroup?.add_effect(effect);
+        } else if (this._unredirectDisabled) {
+            global.compositor.enable_unredirect();
+            this._unredirectDisabled = false;
+        }
     }
 
     _applyCrtParams(preset) {
