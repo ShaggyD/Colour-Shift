@@ -142,11 +142,16 @@ class CrtEffect extends Shell.GLSLEffect {
             uniform float cs_strength;
             uniform vec3  cs_tint;
             uniform float cs_tint_amount;
+            // Declare our own sampler: Cogl binds this effect's offscreen
+            // source texture to texture unit 0 when it draws, so a declared
+            // sampler defaults to it (same trick the shell's FadeEffect uses).
+            uniform sampler2D cs_source;
             vec3 cs_sample (vec2 uv) {
-                return texture2D (cogl_sampler, clamp (uv, 0.0, 1.0)).rgb;
+                return texture2D (cs_source, clamp (uv, 0.0, 1.0)).rgb;
             }
         `;
         const src = `
+            cogl_color_out = cogl_color_in * texture2D (cs_source, vec2 (cogl_tex_coord_in[0].xy));
             vec2 cs_uv = cogl_tex_coord_in[0].xy;
             vec2 cs_c  = cs_uv - 0.5;
             float cs_r2 = dot (cs_c, cs_c);
@@ -183,7 +188,7 @@ class CrtEffect extends Shell.GLSLEffect {
             }
             cogl_color_out.rgb = mix (cogl_color_out.rgb, cs_col, cs_strength);
         `;
-        this.add_glsl_snippet(Cogl.SnippetHook.FRAGMENT, decl, src, false);
+        this.add_glsl_snippet(Cogl.SnippetHook.FRAGMENT, decl, src, true);
     }
 
     setParams(params) {
@@ -287,23 +292,33 @@ class ColorShiftIndicator extends QuickSettings.SystemIndicator {
         this._toggle.menu.setHeader('night-light-symbolic',
             'Colour Shift', 'Choose a mode');
 
-        // One radio item per preset.
+        // Colour presets live in a submenu so the dropdown fits small screens.
         this._items = new Map();
-        for (const preset of PRESETS) {
+        const colourMenu = new PopupMenu.PopupSubMenuMenuItem('Colour');
+        this._toggle.menu.addMenuItem(colourMenu);
+        for (const preset of PRESETS.filter(p => p.kind === 'matrix')) {
             const item = new PopupMenu.PopupMenuItem(preset.label);
             item.connect('activate', () => {
                 this._settings.set_string('preset', preset.id);
                 this._settings.set_boolean('enabled', true);
             });
             this._items.set(preset.id, item);
-            this._toggle.menu.addMenuItem(item);
+            colourMenu.menu.addMenuItem(item);
         }
 
-        this._toggle.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
-        // CRT tuning submenu.
-        this._crtMenu = new PopupMenu.PopupSubMenuMenuItem('CRT tuning');
+        // CRT modes and their tuning live in one submenu.
+        this._crtMenu = new PopupMenu.PopupSubMenuMenuItem('CRT');
         this._toggle.menu.addMenuItem(this._crtMenu);
+        for (const preset of PRESETS.filter(p => p.kind === 'crt')) {
+            const item = new PopupMenu.PopupMenuItem(preset.label);
+            item.connect('activate', () => {
+                this._settings.set_string('preset', preset.id);
+                this._settings.set_boolean('enabled', true);
+            });
+            this._items.set(preset.id, item);
+            this._crtMenu.menu.addMenuItem(item);
+        }
+        this._crtMenu.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         this._crtSliders = new Map();
         const slider = (key, label) => {

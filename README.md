@@ -12,7 +12,8 @@ actually *zero* the other channels, so a red-only screen emits only red light
 
 - **Quick Settings tile** with:
   - a **main button** that toggles the filter on/off, and
-  - a **dropdown** (radio list) to pick the mode.
+  - a compact **dropdown** with two submenus (fit small screens): **Colour ▸**
+    for the eight colour presets, and **CRT ▸** for the CRT modes + tuning.
 - **CRT mode** with a live **CRT tuning** submenu:
   - horizontal **scanlines**
   - RGB **shadow-mask / aperture-grille** ("window screen") pattern
@@ -53,8 +54,8 @@ make enable            # or: gnome-extensions enable colorshift@dchadwick.local
 Open the system menu (top-right corner) and find the **Colour Shift** tile:
 
 - click the tile body → toggle the filter on/off
-- click the **arrow** → choose a mode, and tune the CRT parameters in the
-  **CRT tuning** submenu (sliders update live)
+- click the **arrow** → pick a mode from the **Colour ▸** / **CRT ▸** submenus,
+  and tune the CRT parameters (sliders update live)
 
 ## Modes
 
@@ -80,8 +81,9 @@ Open the system menu (top-right corner) and find the **Colour Shift** tile:
 
 The CRT shader is a single fragment pass: barrel distortion → sample +
 multi-tap phosphor bloom → phosphor tint → scanlines → shadow mask → centre
-glow → edge vignette. It samples neighbouring texels via `cogl_sampler`, so the
-bloom is a real blur rather than a per-pixel fake.
+glow → edge vignette. It samples neighbouring texels from the effect's own
+source texture (declared `sampler2D` on unit 0 — the same trick the shell's
+`FadeEffect` uses), so the bloom is a real blur rather than a per-pixel fake.
 
 ## Settings
 
@@ -150,6 +152,12 @@ Static checks and offline GLSL validation are safe:
 node --check extension.js        # JS syntax
 make schemas                     # schema compiles
 ```
+
+The CRT/colour shaders are validated offline as GLSL ES 100 with
+glslangValidator (fetched root-free via `apt-get download` + `dpkg-deb -x`)
+against a synthetic Cogl-style harness (`varying cogl_tex_coord_in[]`, declared
+uniform `sampler2D`). Use an *honest* harness: naming a nonexistent builtin
+(e.g. `cogl_sampler`) as a stub will hide real compile errors.
 
 **Do not** boot a second `gnome-shell` on the same seat while you are logged in:
 

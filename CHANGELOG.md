@@ -3,6 +3,21 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.1] - 2026-10-10
+
+### Fixed
+
+- **CRT mode shell crash.** `cogl_sampler` is not a valid builtin in Cogl's
+  `FRAGMENT` hook (the journal showed `error: 'cogl_sampler' undeclared` and a
+  failed link after enabling CRT, taking the session down). The CRT shader now
+  declares its own `uniform sampler2D cs_source` and is a replacement snippet
+  that fully controls `cogl_color_out` — the same pattern as the shell's own
+  `FadeEffect`, which is proven on this exact GNOME 50. Revalidated offline
+  against GLSL ES 100 with an honest harness (no fabricated builtins).
+- **Dropdown overflowed small screens.** Colour presets moved into a **Colour ▸**
+  submenu and CRT modes + tuning into a **CRT ▸** submenu; submenus are capped
+  at 420px and wheel-scroll.
+
 ## [1.1.0] - 2026-10-10
 
 ### Added
@@ -11,7 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   fragment shader:
   - scanlines
   - RGB shadow-mask / aperture-grille ("window screen") pattern
-  - multi-tap phosphor bloom (samples neighbours via `cogl_sampler`)
+  - multi-tap phosphor bloom (samples neighbours from the effect's source
+    texture)
   - centre glass glow + edge vignette
   - toggleable barrel distortion (glass curvature)
 - **CRT tuning** submenu in the Quick Settings dropdown with live sliders

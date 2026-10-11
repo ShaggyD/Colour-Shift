@@ -7,3 +7,8 @@
     font-size: 0.85em;
     padding-bottom: 4px;
 }
+
+/* Keep long submenus (Colour, CRT) on-screen; ScrollView handles the wheel. */
+.popup-sub-menu {
+    max-height: 420px;
+}

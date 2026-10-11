@@ -80,9 +80,15 @@ New shader mode composed of independent, toggleable terms (all in one pass):
 - Implemented as a second `Shell.GLSLEffect` (`CrtEffect`) with a `CRT tuning`
   submenu (5 sliders + curvature switch) in the dropdown.
 - **GLSL validation:** no shell-level paint in the headless harness, so the
-  shader is validated offline by wrapping the snippet in a synthetic ES-100
-  program with Cogl builtins stubbed, compiled by `glslangValidator`
-  (`apt-get download glslang-tools` + `dpkg-deb -x`, no root needed).
+  shader is validated offline with `glslangValidator`
+  (`apt-get download glslang-tools` + `dpkg-deb -x`, no root needed) against an
+  *honest* Cogl-shaped harness. ⚠️ Lesson (1.1.1): do **not** stub builtins
+  that don't exist — the CRT shader originally referenced `cogl_sampler`
+  (unknowingly invalid in the FRAGMENT hook) and the harness hid the bug by
+  declaring it as a stub; the shell journal then showed `error: 'cogl_sampler'
+  undeclared` and a failed link, which took the session down. Use the
+  `FadeEffect` pattern: declare your own `uniform sampler2D` (unit 0 holds the
+  offscreen texture at draw time) and replace the fragment hook.
 - **Perf caveat:** multi-tap full-screen offscreen pass is the heaviest mode;
   tap count could be trimmed on weak GPUs (Intel HD 615 here).
 
