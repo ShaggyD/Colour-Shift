@@ -103,6 +103,13 @@ New shader mode composed of independent, toggleable terms (all in one pass):
 - Fixes the framebuffer risk and enables an **exclude list** (e.g. don't tint
   video players / colour-critical apps).
 
+- **Rework (1.3.0):** CRT is now an overlay switch (`crt`), not presets — the
+  shader applies the selected colour matrix first, then the CRT terms, so it
+  works on top of any colour. Removed the special CRT colour presets and the
+  tint term. Artifact fix: the shadow mask is a soft sine grille and the bloom
+  is bright-pass (threshold), so small UI elements (slider hovers, window
+  buttons) no longer moiré/smear.
+
 ## Decisions (answered)
 
 1. **CRT glass glow** → **(c)** centre bloom **plus** edge vignette. Done.

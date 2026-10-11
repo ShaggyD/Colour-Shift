@@ -21,8 +21,6 @@ const PRESETS = [
     {id: 'amber',      label: 'Amber'},
     {id: 'sepia',      label: 'Sepia'},
     {id: 'grayscale',  label: 'Grayscale'},
-    {id: 'crt-amber',  label: 'CRT Amber'},
-    {id: 'crt-green',  label: 'CRT Green'},
 ];
 
 function percentSliderRow(title, subtitle, key, settings) {
@@ -63,7 +61,7 @@ export default class ColorShiftPreferences extends ExtensionPreferences {
 
         const modeGroup = new Adw.PreferencesGroup({
             title: 'Mode',
-            description: 'Which colour shift or CRT mode is applied.',
+            description: 'The colour shift applied, plus an optional CRT overlay that works on top of any colour.',
         });
 
         const combo = new Adw.ComboRow({title: 'Current mode'});
@@ -82,6 +80,8 @@ export default class ColorShiftPreferences extends ExtensionPreferences {
         settings.connect('changed::preset', () => syncCombo());
         modeGroup.add(combo);
         modeGroup.add(switchRow('Enabled', 'Turn the filter on', 'enabled', settings));
+        modeGroup.add(switchRow('CRT overlay',
+            'CRT emulation on top of the selected colour', 'crt', settings));
         modesPage.add(modeGroup);
 
         const favGroup = new Adw.PreferencesGroup({
@@ -118,7 +118,7 @@ export default class ColorShiftPreferences extends ExtensionPreferences {
         const crtPage = new Adw.PreferencesPage({title: 'CRT'});
         const crtGroup = new Adw.PreferencesGroup({
             title: 'CRT display',
-            description: 'Tune the CRT emulation. Selecting a CRT mode applies these parameters live.',
+            description: 'Tune the CRT overlay. Enable CRT in Modes → CRT overlay; changes apply live.',
         });
 
         crtGroup.add(percentSliderRow('Scanlines',
@@ -135,8 +135,6 @@ export default class ColorShiftPreferences extends ExtensionPreferences {
             'Barrel distortion (glass bulge)', 'crt-curvature', settings));
         crtGroup.add(percentSliderRow('Curvature amount',
             'Distortion strength', 'crt-curvature-amount', settings));
-        crtGroup.add(percentSliderRow('Phosphor tint',
-            '0 = full colour, 1 = single phosphor colour', 'crt-tint-amount', settings));
 
         crtPage.add(crtGroup);
         window.add(crtPage);

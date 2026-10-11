@@ -5,12 +5,17 @@
     <key name="preset" type="s">
       <default>'red'</default>
       <summary>Colour preset</summary>
-      <description>The colour shift preset to apply (red, green, blue, red-mono, green-mono, amber, sepia, grayscale, crt-amber, crt-green).</description>
+      <description>The colour shift preset to apply (red, green, blue, red-mono, green-mono, amber, sepia, grayscale). CRT is a separate overlay switch, not a preset.</description>
     </key>
     <key name="favorites" type="as">
-      <default>['red', 'green', 'amber', 'crt-amber', 'crt-green']</default>
+      <default>['red', 'green', 'amber']</default>
       <summary>Favourite modes in Quick Settings</summary>
       <description>Preset ids shown as radio items in the Quick Settings dropdown; everything else is configured in the preferences window.</description>
+    </key>
+    <key name="crt" type="b">
+      <default>false</default>
+      <summary>CRT overlay</summary>
+      <description>Apply the CRT effect on top of the selected colour mode.</description>
     </key>
     <key name="enabled" type="b">
       <default>false</default>
@@ -20,27 +25,27 @@
 
     <!-- CRT (cathode-ray tube) mode parameters -->
     <key name="crt-scanline" type="d">
-      <default>0.35</default>
+      <default>0.30</default>
       <summary>Scanline strength</summary>
       <description>How strongly the horizontal scanlines are darkened (0-1).</description>
     </key>
     <key name="crt-mask" type="d">
-      <default>0.30</default>
+      <default>0.20</default>
       <summary>Shadow-mask strength</summary>
       <description>Strength of the RGB aperture-grille / "window screen" mask (0-1).</description>
     </key>
     <key name="crt-bloom" type="d">
-      <default>0.45</default>
+      <default>0.30</default>
       <summary>Phosphor glow strength</summary>
       <description>Amount of multi-tap phosphor bloom added around bright areas (0-1).</description>
     </key>
     <key name="crt-glow" type="d">
-      <default>0.30</default>
+      <default>0.20</default>
       <summary>Centre glass glow</summary>
       <description>Radial glass glow strongest in the centre of the tube (0-1).</description>
     </key>
     <key name="crt-vignette" type="d">
-      <default>0.25</default>
+      <default>0.20</default>
       <summary>Edge vignette</summary>
       <description>Darkening toward the outer edges of the tube (0-1).</description>
     </key>
@@ -50,14 +55,9 @@
       <description>Whether to apply barrel distortion (glass bulge).</description>
     </key>
     <key name="crt-curvature-amount" type="d">
-      <default>0.06</default>
+      <default>0.05</default>
       <summary>Curvature amount</summary>
       <description>Barrel-distortion strength when curvature is enabled.</description>
-    </key>
-    <key name="crt-tint-amount" type="d">
-      <default>0.80</default>
-      <summary>Phosphor tint amount</summary>
-      <description>How monochrome the phosphor tint is (0 = full colour, 1 = single phosphor colour).</description>
     </key>
   </schema>
 </schemalist>

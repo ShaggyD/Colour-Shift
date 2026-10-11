@@ -3,6 +3,28 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.0] - 2026-10-10
+
+### Changed
+
+- **CRT is now an overlay switch** (`crt` key, Quick Settings switch, and a
+  row in Preferences), layering on top of *any* colour mode instead of being
+  two special "CRT colour" presets.
+- The CRT shader embeds the selected colour matrix, tinting every sample and
+  then adding scanlines, shadow mask, bloom, glow, vignette and curvature in
+  one pass.
+- Removed the `crt-amber`/`crt-green` presets and the `crt-tint-amount` key.
+- Softer defaults: scanline `0.30`, mask `0.20`, bloom `0.30`, glow `0.20`,
+  vignette `0.20`, curvature `0.05`.
+
+### Fixed
+
+- **Visual artifacts** around small UI elements (slider hovers, window
+  close/minimize buttons): the shadow mask is now a smooth sine aperture
+  grille (no hard per-column steps → no moiré), and the bloom is a
+  bright-pass that only glows pixels above a threshold, so thin UI edges
+  stop smearing.
+
 ## [1.2.0] - 2026-10-10
 
 ### Added

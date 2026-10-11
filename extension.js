@@ -4,10 +4,12 @@
  * (every application, every monitor) by attaching a Shell.GLSLEffect to
  * Main.layoutManager.uiGroup, which contains global.window_group.
  *
- * Two effect types are available:
+ * Two effect types:
  *   - ColorShiftEffect: a plain 3x3 colour matrix (channel isolation, tints)
- *   - CrtEffect:        a CRT emulation (scanlines, shadow mask, phosphor
- *                       bloom, centre glass glow, edge vignette, curvature)
+ *   - CrtEffect:        the same colour matrix applied first, then a CRT
+ *                       layer (scanlines, soft shadow mask, phosphor bloom,
+ *                       centre glow, edge vignette, curvature) on top — so
+ *                       CRT works over *any* selected colour mode.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -27,21 +29,17 @@ const LUMA = [0.2126, 0.7152, 0.0722];
 const scale = (v, f) => v.map(x => x * f);
 
 /*
- * Presets.
- *   kind 'matrix' -> 3x3 colour matrix, row-major, applied by ColorShiftEffect
- *   kind 'crt'    -> CRT emulation, tint is the phosphor colour
+ * Presets — all colour modes. CRT is a separate overlay switch, not a preset.
  */
 const PRESETS = [
-    {id: 'red',        kind: 'matrix', label: 'Red only',         rows: [[1, 0, 0], [0, 0, 0], [0, 0, 0]]},
-    {id: 'green',      kind: 'matrix', label: 'Green only',       rows: [[0, 0, 0], [0, 1, 0], [0, 0, 0]]},
-    {id: 'blue',       kind: 'matrix', label: 'Blue only',        rows: [[0, 0, 0], [0, 0, 0], [0, 0, 1]]},
-    {id: 'red-mono',   kind: 'matrix', label: 'Red monochrome',   rows: [LUMA, [0, 0, 0], [0, 0, 0]]},
-    {id: 'green-mono', kind: 'matrix', label: 'Green monochrome', rows: [[0, 0, 0], LUMA, [0, 0, 0]]},
-    {id: 'amber',      kind: 'matrix', label: 'Amber',            rows: [LUMA, scale(LUMA, 0.65), [0, 0, 0]]},
-    {id: 'sepia',      kind: 'matrix', label: 'Sepia',            rows: [[0.393, 0.769, 0.189], [0.349, 0.686, 0.168], [0.272, 0.534, 0.131]]},
-    {id: 'grayscale',  kind: 'matrix', label: 'Grayscale',        rows: [LUMA, LUMA, LUMA]},
-    {id: 'crt-amber',  kind: 'crt',    label: 'CRT Amber',        tint: [1.00, 0.72, 0.35]},
-    {id: 'crt-green',  kind: 'crt',    label: 'CRT Green',        tint: [0.45, 1.00, 0.50]},
+    {id: 'red',        label: 'Red only',         rows: [[1, 0, 0], [0, 0, 0], [0, 0, 0]]},
+    {id: 'green',      label: 'Green only',       rows: [[0, 0, 0], [0, 1, 0], [0, 0, 0]]},
+    {id: 'blue',       label: 'Blue only',        rows: [[0, 0, 0], [0, 0, 0], [0, 0, 1]]},
+    {id: 'red-mono',   label: 'Red monochrome',   rows: [LUMA, [0, 0, 0], [0, 0, 0]]},
+    {id: 'green-mono', label: 'Green monochrome', rows: [[0, 0, 0], LUMA, [0, 0, 0]]},
+    {id: 'amber',      label: 'Amber',            rows: [LUMA, scale(LUMA, 0.65), [0, 0, 0]]},
+    {id: 'sepia',      label: 'Sepia',            rows: [[0.393, 0.769, 0.189], [0.349, 0.686, 0.168], [0.272, 0.534, 0.131]]},
+    {id: 'grayscale',  label: 'Grayscale',        rows: [LUMA, LUMA, LUMA]},
 ];
 
 function presetById(id) {
@@ -50,7 +48,7 @@ function presetById(id) {
 
 // Modes shown as radio items in the Quick Settings dropdown. The user manages
 // this list from the preferences window; the full set is always available there.
-const DEFAULT_FAVORITES = ['red', 'green', 'amber', 'crt-amber', 'crt-green'];
+const DEFAULT_FAVORITES = ['red', 'green', 'amber'];
 
 /* ------------------------------------------------------------------ *
  * Matrix effect (colour presets)
@@ -93,22 +91,25 @@ class ColorShiftEffect extends Shell.GLSLEffect {
 /* ------------------------------------------------------------------ *
  * CRT effect
  *
- * Single fragment pass:
- *   barrel distortion -> sample + multi-tap phosphor bloom -> amber tint
- *   -> scanlines -> shadow mask -> centre glow -> edge vignette
+ * One fragment pass: apply the selected colour matrix to every sample, then
+ * layer the CRT terms on top. Sampling uses the effect's own source texture
+ * via a declared sampler (unit 0 at draw time — the FadeEffect pattern).
+ *
+ * Terms: barrel distortion -> tinted sample + bright-pass phosphor bloom
+ *   -> scanlines -> soft shadow mask -> centre glow -> edge vignette
  * ------------------------------------------------------------------ */
 
 const CRT_DEFAULTS = {
     texSize: [1920, 1080],
-    scanline: 0.35,
-    mask: 0.30,
-    bloom: 0.45,
-    glow: 0.30,
-    vignette: 0.25,
-    curvature: 0.06,
+    scanline: 0.30,
+    mask: 0.20,
+    bloom: 0.30,
+    glow: 0.20,
+    vignette: 0.20,
+    curvature: 0.05,
     strength: 1.0,
-    tint: [1.0, 0.72, 0.35],
-    tintAmount: 0.80,
+    threshold: 0.30,      // bloom bright-pass
+    rows: PRESETS[0].rows,
 };
 
 const CrtEffect = GObject.registerClass(
@@ -116,16 +117,18 @@ class CrtEffect extends Shell.GLSLEffect {
     _init(params = {}) {
         super._init(params);
         this._u = {
-            texSize:    this.get_uniform_location('cs_tex_size'),
-            scanline:   this.get_uniform_location('cs_scanline'),
-            mask:       this.get_uniform_location('cs_mask'),
-            bloom:      this.get_uniform_location('cs_bloom'),
-            glow:       this.get_uniform_location('cs_glow'),
-            vignette:   this.get_uniform_location('cs_vignette'),
-            curvature:  this.get_uniform_location('cs_curvature'),
-            strength:   this.get_uniform_location('cs_strength'),
-            tint:       this.get_uniform_location('cs_tint'),
-            tintAmount: this.get_uniform_location('cs_tint_amount'),
+            texSize:   this.get_uniform_location('cs_tex_size'),
+            scanline:  this.get_uniform_location('cs_scanline'),
+            mask:      this.get_uniform_location('cs_mask'),
+            bloom:     this.get_uniform_location('cs_bloom'),
+            glow:      this.get_uniform_location('cs_glow'),
+            vignette:  this.get_uniform_location('cs_vignette'),
+            curvature: this.get_uniform_location('cs_curvature'),
+            strength:  this.get_uniform_location('cs_strength'),
+            threshold: this.get_uniform_location('cs_threshold'),
+            rowR:      this.get_uniform_location('cs_row_r'),
+            rowG:      this.get_uniform_location('cs_row_g'),
+            rowB:      this.get_uniform_location('cs_row_b'),
         };
         this._params = {...CRT_DEFAULTS};
         this._flush();
@@ -141,14 +144,20 @@ class CrtEffect extends Shell.GLSLEffect {
             uniform float cs_vignette;
             uniform float cs_curvature;
             uniform float cs_strength;
-            uniform vec3  cs_tint;
-            uniform float cs_tint_amount;
+            uniform float cs_threshold;
+            uniform vec3  cs_row_r;
+            uniform vec3  cs_row_g;
+            uniform vec3  cs_row_b;
             // Declare our own sampler: Cogl binds this effect's offscreen
             // source texture to texture unit 0 when it draws, so a declared
             // sampler defaults to it (same trick the shell's FadeEffect uses).
             uniform sampler2D cs_source;
-            vec3 cs_sample (vec2 uv) {
-                return texture2D (cs_source, clamp (uv, 0.0, 1.0)).rgb;
+            vec3 cs_sample_t (vec2 uv) {
+                vec3 c = texture2D (cs_source, clamp (uv, 0.0, 1.0)).rgb;
+                c = vec3 (dot (cs_row_r, c),
+                          dot (cs_row_g, c),
+                          dot (cs_row_b, c));
+                return c;
             }
         `;
         const src = `
@@ -162,26 +171,27 @@ class CrtEffect extends Shell.GLSLEffect {
                 cs_col = vec3 (0.0);
             } else {
                 vec2 cs_step = 1.0 / cs_tex_size;
-                vec3 cs_base = cs_sample (cs_wuv);
+                vec3 cs_base = cs_sample_t (cs_wuv);
+                vec3 cs_thr = vec3 (cs_threshold);
                 vec3 cs_bl = vec3 (0.0);
-                cs_bl += cs_sample (cs_wuv + cs_step * vec2 ( 1.0,  0.0)) * 0.12;
-                cs_bl += cs_sample (cs_wuv + cs_step * vec2 (-1.0,  0.0)) * 0.12;
-                cs_bl += cs_sample (cs_wuv + cs_step * vec2 ( 0.0,  1.0)) * 0.12;
-                cs_bl += cs_sample (cs_wuv + cs_step * vec2 ( 0.0, -1.0)) * 0.12;
-                cs_bl += cs_sample (cs_wuv + cs_step * vec2 ( 2.0,  0.0)) * 0.07;
-                cs_bl += cs_sample (cs_wuv + cs_step * vec2 (-2.0,  0.0)) * 0.07;
-                cs_bl += cs_sample (cs_wuv + cs_step * vec2 ( 0.0,  2.0)) * 0.07;
-                cs_bl += cs_sample (cs_wuv + cs_step * vec2 ( 0.0, -2.0)) * 0.07;
+                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 ( 1.0,  0.0)) - cs_thr, vec3 (0.0)) * 0.12;
+                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 (-1.0,  0.0)) - cs_thr, vec3 (0.0)) * 0.12;
+                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 ( 0.0,  1.0)) - cs_thr, vec3 (0.0)) * 0.12;
+                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 ( 0.0, -1.0)) - cs_thr, vec3 (0.0)) * 0.12;
+                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 ( 2.0,  0.0)) - cs_thr, vec3 (0.0)) * 0.07;
+                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 (-2.0,  0.0)) - cs_thr, vec3 (0.0)) * 0.07;
+                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 ( 0.0,  2.0)) - cs_thr, vec3 (0.0)) * 0.07;
+                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 ( 0.0, -2.0)) - cs_thr, vec3 (0.0)) * 0.07;
                 cs_col = cs_base + cs_bl * cs_bloom * 2.0;
-                float cs_lum = dot (cs_col, vec3 (0.2126, 0.7152, 0.0722));
-                cs_col = mix (cs_col, vec3 (cs_lum) * cs_tint, cs_tint_amount);
                 float cs_scan = 0.5 + 0.5 * cos (cs_wuv.y * cs_tex_size.y * 6.2831853);
                 cs_col *= mix (1.0, cs_scan, cs_scanline);
-                float cs_mx = mod (gl_FragCoord.x, 3.0);
+                // Soft aperture grille: smooth sine per channel (no hard
+                // per-column steps -> no moire on tiny UI elements).
+                float cs_px = gl_FragCoord.x;
                 vec3 cs_maskv = vec3 (0.55);
-                if (cs_mx < 1.0) cs_maskv.r = 1.0;
-                else if (cs_mx < 2.0) cs_maskv.g = 1.0;
-                else cs_maskv.b = 1.0;
+                cs_maskv.r = 0.5 + 0.5 * sin (cs_px * 2.094395102);
+                cs_maskv.g = 0.5 + 0.5 * sin (cs_px * 2.094395102 + 2.094395102);
+                cs_maskv.b = 0.5 + 0.5 * sin (cs_px * 2.094395102 + 4.188790205);
                 cs_col *= mix (vec3 (1.0), cs_maskv, cs_mask);
                 float cs_rad = length (cs_uv - 0.5) * 1.41421356;
                 cs_col += cs_col * cs_glow * (1.0 - smoothstep (0.0, 0.75, cs_rad));
@@ -207,8 +217,10 @@ class CrtEffect extends Shell.GLSLEffect {
         this.set_uniform_float(this._u.vignette, 1, [p.vignette]);
         this.set_uniform_float(this._u.curvature, 1, [p.curvature]);
         this.set_uniform_float(this._u.strength, 1, [p.strength]);
-        this.set_uniform_float(this._u.tint, 3, p.tint);
-        this.set_uniform_float(this._u.tintAmount, 1, [p.tintAmount]);
+        this.set_uniform_float(this._u.threshold, 1, [p.threshold]);
+        this.set_uniform_float(this._u.rowR, 3, p.rows[0]);
+        this.set_uniform_float(this._u.rowG, 3, p.rows[1]);
+        this.set_uniform_float(this._u.rowB, 3, p.rows[2]);
         this.queue_repaint();
     }
 });
@@ -238,10 +250,16 @@ class ColorShiftIndicator extends QuickSettings.SystemIndicator {
             menu_enabled: true,
         });
         this._toggle.menu.setHeader('night-light-symbolic',
-            'Colour Shift', 'Choose a mode');
+            'Colour Shift', 'Colour + CRT');
 
-        // Only the user's favourite modes appear here — the full list and all
-        // tuning live in the preferences window.
+        // CRT works on top of any colour.
+        this._crtItem = new PopupMenu.PopupSwitchMenuItem('CRT',
+            this._settings.get_boolean('crt'));
+        this._crtItem.connect('toggled',
+            (item, state) => this._settings.set_boolean('crt', state));
+        this._toggle.menu.addMenuItem(this._crtItem);
+
+        // Favourite colour modes (radio list).
         this._favoritesSection = new PopupMenu.PopupMenuSection();
         this._toggle.menu.addMenuItem(this._favoritesSection);
         this._items = new Map();
@@ -257,8 +275,8 @@ class ColorShiftIndicator extends QuickSettings.SystemIndicator {
             this._settings.set_boolean('enabled', this._toggle.checked);
         });
 
-        // Persisted state can come from anywhere (this UI, gsettings CLI, or the
-        // preferences window).
+        // Persisted state can come from anywhere (this UI, gsettings CLI, or
+        // the preferences window).
         this._settings.connectObject('changed', (settings, key) => {
             if (key === 'favorites')
                 this._rebuildFavoriteItems();
@@ -271,11 +289,16 @@ class ColorShiftIndicator extends QuickSettings.SystemIndicator {
 
     _sync() {
         const enabled = this._settings.get_boolean('enabled');
+        const crt = this._settings.get_boolean('crt');
         const preset = presetById(this._settings.get_string('preset'));
 
         this._toggle.checked = enabled;
-        this._toggle.subtitle = enabled ? preset.label : '';
+        this._toggle.subtitle = enabled
+            ? (crt ? `${preset.label} · CRT` : preset.label)
+            : '';
         this._indicator.visible = enabled;
+
+        this._crtItem.state = crt;
 
         for (const [id, item] of this._items) {
             item.setOrnament(id === preset.id
@@ -283,19 +306,18 @@ class ColorShiftIndicator extends QuickSettings.SystemIndicator {
                 : PopupMenu.Ornament.NO_DOT);
         }
 
-        this._extension.applyPreset(enabled ? preset : null);
+        this._extension.applyState(enabled ? preset : null, crt);
     }
 
     _rebuildFavoriteItems() {
         this._favoritesSection.removeAll();
         this._items.clear();
 
-        const favs = this._settings.get_strv('favorites');
+        const favs = this._settings.get_strv('favorites')
+            .filter(id => PRESETS.some(p => p.id === id));
         const ids = favs.length > 0 ? favs : DEFAULT_FAVORITES;
 
         for (const id of ids) {
-            if (!PRESETS.some(p => p.id === id))
-                continue;
             const preset = presetById(id);
             const item = new PopupMenu.PopupMenuItem(preset.label);
             item.connect('activate', () => {
@@ -352,17 +374,17 @@ export default class ColorShiftExtension extends Extension {
         this._indicator = null;
 
         for (const eff of [this._matrixEffect, this._crtEffect]) {
-            if (eff) {
+            if (eff)
                 Main.layoutManager.uiGroup?.remove_effect(eff);
-            }
         }
         this._matrixEffect = null;
         this._crtEffect = null;
         this._settings = null;
     }
 
-    /** @param {?object} preset a preset from PRESETS, or null to switch off */
-    applyPreset(preset) {
+    /** @param {?object} preset  active colour preset, or null for off
+     *  @param {boolean} crt     whether the CRT layer is enabled */
+    applyState(preset, crt) {
         if (!this._matrixEffect || !this._crtEffect)
             return;
 
@@ -372,7 +394,7 @@ export default class ColorShiftExtension extends Extension {
             return;
         }
 
-        if (preset.kind === 'crt') {
+        if (crt) {
             this._matrixEffect.enabled = false;
             this._applyCrtParams(preset);
             this._crtEffect.enabled = true;
@@ -398,8 +420,7 @@ export default class ColorShiftExtension extends Extension {
             vignette: s.get_double('crt-vignette'),
             curvature: s.get_boolean('crt-curvature')
                 ? s.get_double('crt-curvature-amount') : 0.0,
-            tint: preset.tint,
-            tintAmount: s.get_double('crt-tint-amount'),
+            rows: preset.rows,
             strength: 1.0,
         });
     }

@@ -58,8 +58,10 @@ Open the system menu (top-right corner) and find the **Colour Shift** tile:
 
 - click the tile body → toggle the filter on/off
 - click the **arrow** → pick any of your **favourite modes** (radio list)
+- flip the **CRT** switch in the dropdown to layer the CRT effect on top of
+  whatever colour is selected
 - use the **Settings…** row (or the Extensions app's gear button) to open the
-  preferences window with all modes + CRT tuning
+  preferences window
 
 ## Preferences
 
@@ -73,12 +75,13 @@ gnome-extensions prefs colorshift@dchadwick.local
 It has two pages, and every change applies live:
 
 - **Modes**
-  - *Current mode* — pick any of the ten modes (applies and enables it).
+  - *Current mode* — pick any colour mode (applies and enables it).
   - *Enabled* — the on/off switch.
+  - *CRT overlay* — layers the CRT effect on top of the current colour.
   - *Quick Settings favourites* — one switch per mode; only the modes switched
     on here appear in the Quick Settings dropdown.
 - **CRT** — all CRT parameters: scanlines, shadow mask, phosphor glow, glass
-  glow, edge vignette, curvature (switch + amount), phosphor tint.
+  glow, edge vignette, curvature (switch + amount).
 
 ## Modes
 
@@ -95,18 +98,15 @@ It has two pages, and every change applies live:
 | `sepia` | Sepia | classic warm photo tint |
 | `grayscale` | Grayscale | fully desaturated |
 
-### CRT presets
+### CRT overlay
 
-| id | Label |
-|----|-------|
-| `crt-amber` | CRT Amber (P3 phosphor) |
-| `crt-green` | CRT Green (P1 phosphor) |
-
-The CRT shader is a single fragment pass: barrel distortion → sample +
-multi-tap phosphor bloom → phosphor tint → scanlines → shadow mask → centre
-glow → edge vignette. It samples neighbouring texels from the effect's own
-source texture (declared `sampler2D` on unit 0 — the same trick the shell's
-`FadeEffect` uses), so the bloom is a real blur rather than a per-pixel fake.
+CRT is **not** a preset — it is a switch that layers on top of any colour
+mode. The shader first applies the selected colour matrix, then the CRT terms
+in one pass: barrel distortion → bright-pass multi-tap phosphor bloom →
+scanlines → soft shadow mask ("window screen") → centre glass glow → edge
+vignette. It samples neighbouring texels from the effect's own source texture
+(declared `sampler2D` on unit 0 — the same trick the shell's `FadeEffect`
+uses), so the bloom is a real blur rather than a per-pixel fake.
 
 ## Settings
 
@@ -114,24 +114,25 @@ source texture (declared `sampler2D` on unit 0 — the same trick the shell's
 EXT=~/.local/share/gnome-shell/extensions/colorshift@dchadwick.local
 GS="gsettings --schemadir $EXT/schemas"
 
-$GS set org.gnome.shell.extensions.colorshift preset 'crt-amber'
-$GS set org.gnome.shell.extensions.colorshift enabled true
+$GS set org.gnome.shell.extensions.colorshift preset 'green'
+$GS set org.gnome.shell.extensions.colorshift crt true
 $GS set org.gnome.shell.extensions.colorshift crt-scanline 0.4
+$GS set org.gnome.shell.extensions.colorshift enabled true
 ```
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `preset` | string | `red` | which mode to apply |
+| `preset` | string | `amber` | colour mode to apply |
+| `crt` | boolean | `false` | CRT overlay on top of the colour |
 | `enabled` | boolean | `false` | whether the filter is applied |
-| `favorites` | string[] | `red, green, amber, crt-amber, crt-green` | modes shown in the Quick Settings dropdown |
-| `crt-scanline` | double | `0.35` | scanline darkening (0–1) |
-| `crt-mask` | double | `0.30` | shadow-mask strength (0–1) |
-| `crt-bloom` | double | `0.45` | phosphor bloom (0–1) |
-| `crt-glow` | double | `0.30` | centre glass glow (0–1) |
-| `crt-vignette` | double | `0.25` | edge vignette (0–1) |
+| `favorites` | string[] | `red, green, amber` | modes shown in the Quick Settings dropdown |
+| `crt-scanline` | double | `0.30` | scanline darkening (0–1) |
+| `crt-mask` | double | `0.20` | shadow-mask strength (0–1) |
+| `crt-bloom` | double | `0.30` | phosphor bloom (0–1) |
+| `crt-glow` | double | `0.20` | centre glass glow (0–1) |
+| `crt-vignette` | double | `0.20` | edge vignette (0–1) |
 | `crt-curvature` | boolean | `true` | enable barrel distortion |
-| `crt-curvature-amount` | double | `0.06` | distortion strength |
-| `crt-tint-amount` | double | `0.80` | 0 = full colour, 1 = single phosphor |
+| `crt-curvature-amount` | double | `0.05` | distortion strength |
 
 ## How it works
 
@@ -144,9 +145,9 @@ this.uiGroup.add_child(global.window_group);
 ```
 
 Each colour preset is a 3×3 colour matrix passed as three `vec3` uniforms. The
-CRT effect is a separate `Shell.GLSLEffect` with its own uniforms; exactly one of
-the two effects is enabled at a time. Adding a colour is one line in the
-`PRESETS` array in `extension.js`.
+CRT effect embeds the same matrix (so it works on top of any colour) and adds
+the CRT terms; exactly one of the two effects is enabled at a time. Adding a
+colour is one line in the `PRESETS` array in `extension.js`.
 
 The effects are created once and their `enabled` flag is toggled — the same
 pattern the shell uses for its own desaturate/brightness effects on `uiGroup`.
