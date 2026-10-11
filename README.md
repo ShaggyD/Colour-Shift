@@ -12,15 +12,18 @@ actually *zero* the other channels, so a red-only screen emits only red light
 
 - **Quick Settings tile** with:
   - a **main button** that toggles the filter on/off, and
-  - a compact **dropdown** with two submenus (fit small screens): **Colour ▸**
-    for the eight colour presets, and **CRT ▸** for the CRT modes + tuning.
-- **CRT mode** with a live **CRT tuning** submenu:
+  - a compact **dropdown** of your **favourite modes** (radio list) plus a
+    **Settings…** row that opens the full preferences window.
+- **CRT mode**:
   - horizontal **scanlines**
   - RGB **shadow-mask / aperture-grille** ("window screen") pattern
   - multi-tap **phosphor glow / bloom**
   - **centre glass glow** + **edge vignette**
   - toggleable **barrel distortion** (glass curvature)
   - amber or green phosphor tint
+- **Preferences window** (Extensions app → Settings, or
+  `gnome-extensions prefs`) with the full mode list, Quick Settings favourites,
+  and every CRT parameter — all applied live.
 - A panel indicator that appears only while the filter is active.
 - Works on **Wayland and X11** — it is a compositor effect, not an XRandR gamma hack.
 - Tints **every application on every monitor** via one shader.
@@ -54,8 +57,28 @@ make enable            # or: gnome-extensions enable colorshift@dchadwick.local
 Open the system menu (top-right corner) and find the **Colour Shift** tile:
 
 - click the tile body → toggle the filter on/off
-- click the **arrow** → pick a mode from the **Colour ▸** / **CRT ▸** submenus,
-  and tune the CRT parameters (sliders update live)
+- click the **arrow** → pick any of your **favourite modes** (radio list)
+- use the **Settings…** row (or the Extensions app's gear button) to open the
+  preferences window with all modes + CRT tuning
+
+## Preferences
+
+Open the preferences window from the Extensions app ("Colour Shift → Settings")
+or from a terminal:
+
+```sh
+gnome-extensions prefs colorshift@dchadwick.local
+```
+
+It has two pages, and every change applies live:
+
+- **Modes**
+  - *Current mode* — pick any of the ten modes (applies and enables it).
+  - *Enabled* — the on/off switch.
+  - *Quick Settings favourites* — one switch per mode; only the modes switched
+    on here appear in the Quick Settings dropdown.
+- **CRT** — all CRT parameters: scanlines, shadow mask, phosphor glow, glass
+  glow, edge vignette, curvature (switch + amount), phosphor tint.
 
 ## Modes
 
@@ -100,6 +123,7 @@ $GS set org.gnome.shell.extensions.colorshift crt-scanline 0.4
 |-----|------|---------|---------|
 | `preset` | string | `red` | which mode to apply |
 | `enabled` | boolean | `false` | whether the filter is applied |
+| `favorites` | string[] | `red, green, amber, crt-amber, crt-green` | modes shown in the Quick Settings dropdown |
 | `crt-scanline` | double | `0.35` | scanline darkening (0–1) |
 | `crt-mask` | double | `0.30` | shadow-mask strength (0–1) |
 | `crt-bloom` | double | `0.45` | phosphor bloom (0–1) |

@@ -12,17 +12,14 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
 import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
-import St from 'gi://St';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import * as QuickSettings from 'resource:///org/gnome/shell/ui/quickSettings.js';
-import {Slider} from 'resource:///org/gnome/shell/ui/slider.js';
 
 // Rec.709 luminance weights: turn a colour image into a single-channel image
 // (monochrome) so detail is preserved.
@@ -50,6 +47,10 @@ const PRESETS = [
 function presetById(id) {
     return PRESETS.find(p => p.id === id) ?? PRESETS[0];
 }
+
+// Modes shown as radio items in the Quick Settings dropdown. The user manages
+// this list from the preferences window; the full set is always available there.
+const DEFAULT_FAVORITES = ['red', 'green', 'amber', 'crt-amber', 'crt-green'];
 
 /* ------------------------------------------------------------------ *
  * Matrix effect (colour presets)
@@ -213,59 +214,6 @@ class CrtEffect extends Shell.GLSLEffect {
 });
 
 /* ------------------------------------------------------------------ *
- * A labelled slider row for the dropdown menu
- * ------------------------------------------------------------------ */
-
-const SliderRow = GObject.registerClass({
-    Properties: {
-        'value': GObject.ParamSpec.double(
-            'value', null, null,
-            GObject.ParamFlags.READWRITE,
-            0.0, 1.0, 0.0),
-    },
-}, class SliderRow extends PopupMenu.PopupBaseMenuItem {
-    _init(label, value) {
-        super._init({activate: false});
-        this.add_style_class_name('colorshift-slider-item');
-
-        this._updating = false;
-        this._slider = new Slider(value);
-        this._slider.accessible_name = label;
-        this._slider.connect('notify::value', () => {
-            if (!this._updating)
-                this.notify('value');
-        });
-
-        const box = new St.BoxLayout({vertical: true, x_expand: true});
-        box.add_child(new St.Label({
-            text: label,
-            style_class: 'colorshift-slider-label',
-        }));
-        box.add_child(this._slider);
-        this.add_child(box);
-    }
-
-    get value() {
-        return this._slider.value;
-    }
-
-    set value(v) {
-        if (this._slider.value === v)
-            return;
-        this._updating = true;
-        this._slider.value = v;
-        this._updating = false;
-    }
-
-    vfunc_key_press_event(event) {
-        const key = event.get_key_symbol();
-        if (key === Clutter.KEY_Left || key === Clutter.KEY_Right)
-            return this._slider.vfunc_key_press_event(event);
-        return super.vfunc_key_press_event(event);
-    }
-});
-
-/* ------------------------------------------------------------------ *
  * Quick Settings tile + panel indicator
  * ------------------------------------------------------------------ */
 
@@ -292,61 +240,30 @@ class ColorShiftIndicator extends QuickSettings.SystemIndicator {
         this._toggle.menu.setHeader('night-light-symbolic',
             'Colour Shift', 'Choose a mode');
 
-        // Colour presets live in a submenu so the dropdown fits small screens.
+        // Only the user's favourite modes appear here — the full list and all
+        // tuning live in the preferences window.
+        this._favoritesSection = new PopupMenu.PopupMenuSection();
+        this._toggle.menu.addMenuItem(this._favoritesSection);
         this._items = new Map();
-        const colourMenu = new PopupMenu.PopupSubMenuMenuItem('Colour');
-        this._toggle.menu.addMenuItem(colourMenu);
-        for (const preset of PRESETS.filter(p => p.kind === 'matrix')) {
-            const item = new PopupMenu.PopupMenuItem(preset.label);
-            item.connect('activate', () => {
-                this._settings.set_string('preset', preset.id);
-                this._settings.set_boolean('enabled', true);
-            });
-            this._items.set(preset.id, item);
-            colourMenu.menu.addMenuItem(item);
-        }
+        this._rebuildFavoriteItems();
 
-        // CRT modes and their tuning live in one submenu.
-        this._crtMenu = new PopupMenu.PopupSubMenuMenuItem('CRT');
-        this._toggle.menu.addMenuItem(this._crtMenu);
-        for (const preset of PRESETS.filter(p => p.kind === 'crt')) {
-            const item = new PopupMenu.PopupMenuItem(preset.label);
-            item.connect('activate', () => {
-                this._settings.set_string('preset', preset.id);
-                this._settings.set_boolean('enabled', true);
-            });
-            this._items.set(preset.id, item);
-            this._crtMenu.menu.addMenuItem(item);
-        }
-        this._crtMenu.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
-        this._crtSliders = new Map();
-        const slider = (key, label) => {
-            const row = new SliderRow(label, this._settings.get_double(key));
-            row.connect('notify::value',
-                () => this._settings.set_double(key, row.value));
-            this._crtSliders.set(key, row);
-            this._crtMenu.menu.addMenuItem(row);
-        };
-        slider('crt-scanline', 'Scanlines');
-        slider('crt-mask', 'Shadow mask');
-        slider('crt-bloom', 'Phosphor glow');
-        slider('crt-glow', 'Glass glow');
-        slider('crt-vignette', 'Edge vignette');
-
-        this._curvatureItem = new PopupMenu.PopupSwitchMenuItem(
-            'Curvature', this._settings.get_boolean('crt-curvature'));
-        this._curvatureItem.connect('toggled',
-            (item, state) => this._settings.set_boolean('crt-curvature', state));
-        this._crtMenu.menu.addMenuItem(this._curvatureItem);
+        this._toggle.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        const settingsItem = new PopupMenu.PopupMenuItem('Settings…');
+        settingsItem.connect('activate', () => this._extension.openPreferences());
+        this._toggle.menu.addMenuItem(settingsItem);
 
         // Clicking the tile itself toggles on/off.
         this._toggle.connect('clicked', () => {
             this._settings.set_boolean('enabled', this._toggle.checked);
         });
 
-        // Persisted state can come from anywhere (this UI or gsettings CLI).
-        this._settings.connectObject('changed', () => this._sync(), this);
+        // Persisted state can come from anywhere (this UI, gsettings CLI, or the
+        // preferences window).
+        this._settings.connectObject('changed', (settings, key) => {
+            if (key === 'favorites')
+                this._rebuildFavoriteItems();
+            this._sync();
+        }, this);
 
         this.quickSettingsItems.push(this._toggle);
         this._sync();
@@ -366,11 +283,28 @@ class ColorShiftIndicator extends QuickSettings.SystemIndicator {
                 : PopupMenu.Ornament.NO_DOT);
         }
 
-        for (const [key, row] of this._crtSliders)
-            row.value = this._settings.get_double(key);
-        this._curvatureItem.state = this._settings.get_boolean('crt-curvature');
-
         this._extension.applyPreset(enabled ? preset : null);
+    }
+
+    _rebuildFavoriteItems() {
+        this._favoritesSection.removeAll();
+        this._items.clear();
+
+        const favs = this._settings.get_strv('favorites');
+        const ids = favs.length > 0 ? favs : DEFAULT_FAVORITES;
+
+        for (const id of ids) {
+            if (!PRESETS.some(p => p.id === id))
+                continue;
+            const preset = presetById(id);
+            const item = new PopupMenu.PopupMenuItem(preset.label);
+            item.connect('activate', () => {
+                this._settings.set_string('preset', preset.id);
+                this._settings.set_boolean('enabled', true);
+            });
+            this._items.set(preset.id, item);
+            this._favoritesSection.addMenuItem(item);
+        }
     }
 
     destroy() {

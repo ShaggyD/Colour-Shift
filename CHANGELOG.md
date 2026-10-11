@@ -3,6 +3,25 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.0] - 2026-10-10
+
+### Added
+
+- **Preferences window** (`prefs.js`, Adw) with the full mode list, an
+  *Enabled* switch, per-mode **Quick Settings favourites** toggles, and a
+  **CRT page** with every parameter (scanlines, shadow mask, phosphor glow,
+  glass glow, edge vignette, curvature switch + amount, phosphor tint) — all
+  applied live. Opened via Extensions app → Settings, `gnome-extensions
+  prefs …`, or a **Settings…** row in the Quick Settings dropdown.
+- `favorites` GSettings key: the modes shown in the Quick Settings dropdown.
+
+### Changed
+
+- Quick Settings dropdown is now a short radio list of **favourites** only;
+  the CRT tuning submenu and sliders moved out of the shell into the
+  preferences window (fits small screens, keeps the dropdown simple).
+- Removed the now-unneeded dropdown slider styles.
+
 ## [1.1.1] - 2026-10-10
 
 ### Fixed

@@ -7,6 +7,11 @@
       <summary>Colour preset</summary>
       <description>The colour shift preset to apply (red, green, blue, red-mono, green-mono, amber, sepia, grayscale, crt-amber, crt-green).</description>
     </key>
+    <key name="favorites" type="as">
+      <default>['red', 'green', 'amber', 'crt-amber', 'crt-green']</default>
+      <summary>Favourite modes in Quick Settings</summary>
+      <description>Preset ids shown as radio items in the Quick Settings dropdown; everything else is configured in the preferences window.</description>
+    </key>
     <key name="enabled" type="b">
       <default>false</default>
       <summary>Filter enabled</summary>

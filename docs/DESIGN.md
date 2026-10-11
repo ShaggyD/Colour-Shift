@@ -112,8 +112,9 @@ New shader mode composed of independent, toggleable terms (all in one pass):
 
 ## Order of work
 
+0. ✅ **Preferences window landed early** (1.2.0) — full mode list, favourites, CRT tuning
 1. ✅ **CRT mode** (1.1.0)
 2. Core UX — intensity slider, keybindings, smooth fade
 3. Scheduling — fixed window + sunset→sunrise
-4. Custom RGB tint + preferences window (last)
+4. Custom RGB tint (last — semantics still open, Q2)
 5. Per-actor refactor → app-aware (later)
