@@ -3,6 +3,20 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.1] - 2026-10-10
+
+### Fixed
+
+- **"Stuck vignette" bug**: the CRT curvature edge-falloff applied an
+  unconditional dark border (~2–10 % of each edge) no matter what the
+  curvature/vignette sliders were set to. It now fades only where the barrel
+  warp actually pushes sampling past the tube edge — zero contribution when
+  curvature is off.
+
+### Changed
+
+- **Relicensed to GPL-3.0-or-later** (was GPL-2.0-or-later).
+
 ## [1.3.0] - 2026-10-10
 
 ### Changed

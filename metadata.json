@@ -1,7 +1,8 @@
 {
   "uuid": "colorshift@dchadwick.local",
   "name": "Colour Shift",
-  "description": "Turns the entire display a single colour (red, green, blue, amber, sepia) or a monochrome tint. Adds a Quick Settings toggle with a dropdown to choose the colour.",
+  "description": "Turn the whole display a single colour or into a CRT monitor (scanlines, shadow mask, phosphor bloom, curvature). Add a Quick Settings toggle with a colour dropdown and a CRT overlay switch, plus a full preferences window.",
   "shell-version": ["48", "49", "50"],
-  "settings-schema": "org.gnome.shell.extensions.colorshift"
+  "settings-schema": "org.gnome.shell.extensions.colorshift",
+  "url": "https://github.com/shaggyd/Colour-Shift"
 }

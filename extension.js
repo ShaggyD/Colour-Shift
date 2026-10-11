@@ -11,7 +11,7 @@
  *                       centre glow, edge vignette, curvature) on top — so
  *                       CRT works over *any* selected colour mode.
  *
- * SPDX-License-Identifier: GPL-2.0-or-later
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 import Cogl from 'gi://Cogl';
@@ -166,13 +166,12 @@ class CrtEffect extends Shell.GLSLEffect {
             vec2 cs_c  = cs_uv - 0.5;
             float cs_r2 = dot (cs_c, cs_c);
             vec2 cs_wuv = cs_uv + cs_c * (cs_r2 * cs_curvature);
-            // Soft falloff instead of a hard black cut wherever the warp
-            // pushes sampling past the tube edge (the visible seam when
-            // curvature is on).
-            float cs_edge = smoothstep (0.02, 0.10, cs_wuv.x)
-                          * (1.0 - smoothstep (0.90, 1.10, cs_wuv.x))
-                          * smoothstep (0.02, 0.10, cs_wuv.y)
-                          * (1.0 - smoothstep (0.90, 1.10, cs_wuv.y));
+            // Fade the tube edge ONLY where the warp actually pushes sampling
+            // past [0,1]. With curvature off this is exactly zero, so there is
+            // never an always-on dark ring (the "stuck vignette" bug).
+            float cs_ox = max (max (-cs_wuv.x, cs_wuv.x - 1.0),
+                               max (-cs_wuv.y, cs_wuv.y - 1.0));
+            float cs_edge = 1.0 - smoothstep (0.0, 0.015, max (cs_ox, 0.0));
             vec2 cs_suv = clamp (cs_wuv, 0.0, 1.0);
             vec3 cs_col;
             {

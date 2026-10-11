@@ -4,7 +4,7 @@
  * Everything is configured here: the full mode list, which modes appear as
  * favourites in Quick Settings, and all CRT parameters. Changes apply live.
  *
- * SPDX-License-Identifier: GPL-2.0-or-later
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 import Adw from 'gi://Adw';

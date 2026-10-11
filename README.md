@@ -36,20 +36,46 @@ actually *zero* the other channels, so a red-only screen emits only red light
 
 ## Install
 
+### From extensions.gnome.org (recommended)
+1. Open the extension page on<br>
+   `https://extensions.gnome.org/extension/…/colour-shift/`
+2. Click the **Install** toggle (make sure the GNOME Shell browser integration
+   extension is installed and enabled).
+3. Log out and back in once (Wayland loads extensions at startup).
+
+To install a downloaded `*.shell-extension.zip` instead:
+
 ```sh
-git clone <this-repo> colorshift@dchadwick.local
-cd colorshift@dchadwick.local
-make install
+gnome-extensions install Colour-Shift.shell-extension.zip
+gnome-extensions enable colorshift@dchadwick.local
 ```
 
-Then **log out and back in once**: GNOME Shell only scans for extensions at
-startup, so a freshly added extension cannot be picked up live on Wayland.
-After that it is enabled and toggling is instant.
+### Manual (from this repo)
+```sh
+git clone https://github.com/shaggyd/Colour-Shift.git colorshift@dchadwick.local
+cd colorshift@dchadwick.local
+make install            # copies the files and builds the schema
+make enable             # gnome-extensions enable colorshift@dchadwick.local
+```
 
-To enable it explicitly:
+…or fully by hand:
 
 ```sh
-make enable            # or: gnome-extensions enable colorshift@dchadwick.local
+EXT=~/.local/share/gnome-shell/extensions/colorshift@dchadwick.local
+mkdir -p "$EXT/schemas"
+cp extension.js metadata.json prefs.js LICENSE "$EXT/"
+cp schemas/org.gnome.shell.extensions.colorshift.gschema.xml "$EXT/schemas/"
+glib-compile-schemas "$EXT/schemas"
+gnome-extensions enable colorshift@dchadwick.local
+```
+
+**In every case: log out and back in once** — GNOME Shell only loads
+(user) extensions at startup on Wayland.
+
+### Building the upload zip
+```sh
+make pack
+# -> colorshift@dchadwick.local.shell-extension.zip
 ```
 
 ## Usage
@@ -201,4 +227,4 @@ See [`docs/DESIGN.md`](docs/DESIGN.md) for the roadmap.
 
 ## License
 
-GPL-2.0-or-later — see [LICENSE](LICENSE).
+GPL-3.0-or-later — see [LICENSE](LICENSE).
