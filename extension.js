@@ -166,22 +166,28 @@ class CrtEffect extends Shell.GLSLEffect {
             vec2 cs_c  = cs_uv - 0.5;
             float cs_r2 = dot (cs_c, cs_c);
             vec2 cs_wuv = cs_uv + cs_c * (cs_r2 * cs_curvature);
+            // Soft falloff instead of a hard black cut wherever the warp
+            // pushes sampling past the tube edge (the visible seam when
+            // curvature is on).
+            float cs_edge = smoothstep (0.02, 0.10, cs_wuv.x)
+                          * (1.0 - smoothstep (0.90, 1.10, cs_wuv.x))
+                          * smoothstep (0.02, 0.10, cs_wuv.y)
+                          * (1.0 - smoothstep (0.90, 1.10, cs_wuv.y));
+            vec2 cs_suv = clamp (cs_wuv, 0.0, 1.0);
             vec3 cs_col;
-            if (cs_wuv.x < 0.0 || cs_wuv.x > 1.0 || cs_wuv.y < 0.0 || cs_wuv.y > 1.0) {
-                cs_col = vec3 (0.0);
-            } else {
+            {
                 vec2 cs_step = 1.0 / cs_tex_size;
-                vec3 cs_base = cs_sample_t (cs_wuv);
+                vec3 cs_base = cs_sample_t (cs_suv);
                 vec3 cs_thr = vec3 (cs_threshold);
                 vec3 cs_bl = vec3 (0.0);
-                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 ( 1.0,  0.0)) - cs_thr, vec3 (0.0)) * 0.12;
-                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 (-1.0,  0.0)) - cs_thr, vec3 (0.0)) * 0.12;
-                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 ( 0.0,  1.0)) - cs_thr, vec3 (0.0)) * 0.12;
-                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 ( 0.0, -1.0)) - cs_thr, vec3 (0.0)) * 0.12;
-                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 ( 2.0,  0.0)) - cs_thr, vec3 (0.0)) * 0.07;
-                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 (-2.0,  0.0)) - cs_thr, vec3 (0.0)) * 0.07;
-                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 ( 0.0,  2.0)) - cs_thr, vec3 (0.0)) * 0.07;
-                cs_bl += max (cs_sample_t (cs_wuv + cs_step * vec2 ( 0.0, -2.0)) - cs_thr, vec3 (0.0)) * 0.07;
+                cs_bl += max (cs_sample_t (cs_suv + cs_step * vec2 ( 1.0,  0.0)) - cs_thr, vec3 (0.0)) * 0.12;
+                cs_bl += max (cs_sample_t (cs_suv + cs_step * vec2 (-1.0,  0.0)) - cs_thr, vec3 (0.0)) * 0.12;
+                cs_bl += max (cs_sample_t (cs_suv + cs_step * vec2 ( 0.0,  1.0)) - cs_thr, vec3 (0.0)) * 0.12;
+                cs_bl += max (cs_sample_t (cs_suv + cs_step * vec2 ( 0.0, -1.0)) - cs_thr, vec3 (0.0)) * 0.12;
+                cs_bl += max (cs_sample_t (cs_suv + cs_step * vec2 ( 2.0,  0.0)) - cs_thr, vec3 (0.0)) * 0.07;
+                cs_bl += max (cs_sample_t (cs_suv + cs_step * vec2 (-2.0,  0.0)) - cs_thr, vec3 (0.0)) * 0.07;
+                cs_bl += max (cs_sample_t (cs_suv + cs_step * vec2 ( 0.0,  2.0)) - cs_thr, vec3 (0.0)) * 0.07;
+                cs_bl += max (cs_sample_t (cs_suv + cs_step * vec2 ( 0.0, -2.0)) - cs_thr, vec3 (0.0)) * 0.07;
                 cs_col = cs_base + cs_bl * cs_bloom * 2.0;
                 float cs_scan = 0.5 + 0.5 * cos (cs_wuv.y * cs_tex_size.y * 6.2831853);
                 cs_col *= mix (1.0, cs_scan, cs_scanline);
@@ -197,6 +203,7 @@ class CrtEffect extends Shell.GLSLEffect {
                 cs_col += cs_col * cs_glow * (1.0 - smoothstep (0.0, 0.75, cs_rad));
                 cs_col *= 1.0 - cs_vignette * smoothstep (0.45, 1.0, cs_rad);
             }
+            cs_col *= cs_edge;
             cogl_color_out.rgb = mix (cogl_color_out.rgb, cs_col, cs_strength);
         `;
         this.add_glsl_snippet(Cogl.SnippetHook.FRAGMENT, decl, src, true);
@@ -351,6 +358,7 @@ export default class ColorShiftExtension extends Extension {
         this._matrixEffect = new ColorShiftEffect({name: 'colorshift'});
         this._crtEffect = new CrtEffect({name: 'colorshift-crt'});
         this._activeEffect = null;
+        this._unredirectDisabled = false;
 
         this._indicator = new ColorShiftIndicator(this);
         Main.panel.statusArea.quickSettings.addExternalIndicator(this._indicator);
