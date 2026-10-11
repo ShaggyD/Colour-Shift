@@ -13,7 +13,7 @@ sources on this machine, not assumed.
 | Smooth fade | 🟢 Easy | Animatable effect props via `actor.ease_property('@effects.<name>.<prop>', …)` |
 | Settings panel (prefs) | 🟢 Easy | `ExtensionPreferences.fillPreferencesWindow()`, **libadwaita 1.9.0** (`Adw.PreferencesPage/Group/SpinRow/ActionRow/SwitchRow/ComboRow/ExpanderRow` all present) |
 | Custom RGB tint | 🟢 Easy | Derive a 3×3 matrix from a chosen colour |
-| CRT mode | 🟢 Feasible | `Shell.GLSLEffect` is a `ClutterOffscreenEffect`; layer-0 source texture is bound → **multi-tap sampling works** |
+| CRT mode | ✅ **Done (1.1.0)** | shader walks scanlines + shadow mask + multi-tap bloom + glow/vignette + curvature |
 | Per-monitor | 🔴 No | All monitors render from the single `uiGroup` stage |
 
 ### The key technical unlock: multi-tap sampling
@@ -67,21 +67,24 @@ Implications:
   see open question Q2).
 - Live updates via the existing `settings 'changed'` handler.
 
-### Phase 3 — CRT mode (Feature B)
+### Phase 3 — CRT mode (Feature B) ✅ DONE in 1.1.0
 New shader mode composed of independent, toggleable terms (all in one pass):
-1. **Scanlines** — Gaussian beam profile on `uv.y × height`.
-2. **"Window screen"** — shadow mask / aperture-grille RGB triplet pattern
-   (`mask(gl_FragCoord.xy)`), the fine mesh/dot texture.
-3. **Amber phosphor tint** — colour matrix toward amber/phosphor.
-4. **Phosphor glow / bloom** — multi-tap Gaussian over `cogl_sampler`,
-   additively recombined.
-5. **Centre glass glow + edge vignette** — radial term (see Q1).
-6. *Optional* **barrel distortion** for glass curvature.
-- Reference: libretro **crt-lottes** (Timothy Lottes, public domain) — a proven,
-  fixed-tap, ES-100-compatible implementation we can port/trim.
-- Needs a `pixel_step` uniform (texel size) derived from the actor size.
-- Prefs page for all params. **Perf caveat:** multi-tap on a full-screen offscreen
-  buffer is the heaviest thing here — we may need to cap taps on this Intel HD 615.
+1. **Scanlines** — `0.5 + 0.5*cos(uv.y * tex_h * 2π)`.
+2. **"Window screen"** — RGB aperture-grille pattern via `mod(gl_FragCoord.x, 3.0)`.
+3. **Amber/green phosphor tint** — luminance mapped to the phosphor colour,
+   weighted by `crt-tint-amount`.
+4. **Phosphor glow / bloom** — 8-tap cross over `cogl_sampler` (real neighbour
+   sampling, not a per-pixel fake).
+5. **Centre glass glow + edge vignette** — radial term (Q1 answer (c)).
+6. **Barrel distortion** — toggleable via `crt-curvature` (Q3).
+- Implemented as a second `Shell.GLSLEffect` (`CrtEffect`) with a `CRT tuning`
+  submenu (5 sliders + curvature switch) in the dropdown.
+- **GLSL validation:** no shell-level paint in the headless harness, so the
+  shader is validated offline by wrapping the snippet in a synthetic ES-100
+  program with Cogl builtins stubbed, compiled by `glslangValidator`
+  (`apt-get download glslang-tools` + `dpkg-deb -x`, no root needed).
+- **Perf caveat:** multi-tap full-screen offscreen pass is the heaviest mode;
+  tap count could be trimmed on weak GPUs (Intel HD 615 here).
 
 ### Phase 4 — Scheduling (#5)
 - Schema: `schedule-enabled` (b), `schedule-from` (d), `schedule-to` (d).
@@ -94,14 +97,17 @@ New shader mode composed of independent, toggleable terms (all in one pass):
 - Fixes the framebuffer risk and enables an **exclude list** (e.g. don't tint
   video players / colour-critical apps).
 
-## Open questions
+## Decisions (answered)
 
-1. **CRT "glass glow toward the outer edges"** — which of these did you mean?
-   (a) bloom strongest in the centre, fading out toward the edges;
-   (b) a soft glass reflection *highlight near the screen edges/corners*;
-   (c) both — a centre bloom **plus** an edge vignette.
-2. **Custom tint semantics** — "luminance → your colour" (keeps detail, like
-   Amber/Sepia) vs "per-channel gain" (a physical filter). Proposed: luminance
-   → colour, with the RGB sliders picking the colour.
-3. **Curvature** — include barrel distortion (glass bulge) or keep the image flat?
-4. **Scheduling** — fixed time range, or sunset-to-sunrise?
+1. **CRT glass glow** → **(c)** centre bloom **plus** edge vignette. Done.
+2. **Custom tint semantics** → **deferred to last** (Q2 unresolved).
+3. **Curvature** → **yes, toggleable** (`crt-curvature`). Done.
+4. **Scheduling** → **both** fixed time range **and** sunset→sunrise.
+
+## Order of work
+
+1. ✅ **CRT mode** (1.1.0)
+2. Core UX — intensity slider, keybindings, smooth fade
+3. Scheduling — fixed window + sunset→sunrise
+4. Custom RGB tint + preferences window (last)
+5. Per-actor refactor → app-aware (later)
